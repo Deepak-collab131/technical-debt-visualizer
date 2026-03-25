@@ -23,28 +23,41 @@ function App() {
     try {
       setLoading(true);
       setError("");
+      setData([]);
+      setInsights([]);
 
-      const res = await fetch("http://localhost:5000/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ repoUrl: repo }),
-      });
+      console.log("🚀 Calling backend...");
+
+      const res = await fetch(
+        "https://backend-gsxw.onrender.com/analyze",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ repoUrl: repo }),
+        }
+      );
 
       const result = await res.json();
+      console.log("📦 Data:", result);
+
       setData(result);
 
-      const ai = await fetch("http://localhost:5000/ai-insights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metrics: result }),
-      });
+      const ai = await fetch(
+        "https://backend-gsxw.onrender.com/ai-insights",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ metrics: result }),
+        }
+      );
 
       const aiResult = await ai.json();
       setInsights(aiResult.suggestions);
     } catch (err) {
-      setError("Failed to analyze repo. Try again.");
+      console.error(err);
+      setError("❌ Failed to analyze repo. Try again.");
     } finally {
       setLoading(false);
     }
@@ -69,11 +82,17 @@ function App() {
   const chartOptions = {
     responsive: true,
     plugins: {
-      legend: { labels: { color: "#fff" } },
+      legend: {
+        labels: { color: "#fff" },
+      },
     },
     scales: {
-      x: { ticks: { color: "#fff" } },
-      y: { ticks: { color: "#fff" } },
+      x: {
+        ticks: { color: "#fff" },
+      },
+      y: {
+        ticks: { color: "#fff" },
+      },
     },
   };
 
@@ -87,9 +106,7 @@ function App() {
         fontFamily: "Arial",
       }}
     >
-      <h1 style={{ marginBottom: "20px" }}>
-        🚀 Technical Debt Visualizer
-      </h1>
+      <h1>🚀 Technical Debt Visualizer</h1>
 
       {/* INPUT */}
       <div style={{ marginBottom: "20px" }}>
@@ -154,7 +171,9 @@ function App() {
                   borderRadius: "8px",
                 }}
               >
-                <p><b>{item.file}</b></p>
+                <p>
+                  <b>{item.file}</b>
+                </p>
                 <p>📈 Complexity: {item.complexity}</p>
                 <p>🛠 Maintainability: {item.maintainability}</p>
                 <p>📄 Lines: {item.lines}</p>
