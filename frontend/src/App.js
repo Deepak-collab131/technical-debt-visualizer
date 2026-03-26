@@ -26,8 +26,6 @@ function App() {
       setData([]);
       setInsights([]);
 
-      console.log("🚀 Calling backend...");
-
       const res = await fetch(
         "https://backend-gsxw.onrender.com/analyze",
         {
@@ -40,7 +38,11 @@ function App() {
       );
 
       const result = await res.json();
-      console.log("📦 Data:", result);
+
+      // 🛑 SAFETY CHECK
+      if (!Array.isArray(result)) {
+        throw new Error("Invalid data from backend");
+      }
 
       setData(result);
 
@@ -54,7 +56,7 @@ function App() {
       );
 
       const aiResult = await ai.json();
-      setInsights(aiResult.suggestions);
+      setInsights(aiResult?.suggestions || []);
     } catch (err) {
       console.error(err);
       setError("❌ Failed to analyze repo. Try again.");
@@ -64,16 +66,16 @@ function App() {
   };
 
   const chartData = {
-    labels: data.map((d) => d.file),
+    labels: data?.map((d) => d.file) || [],
     datasets: [
       {
         label: "Complexity",
-        data: data.map((d) => d.complexity),
+        data: data?.map((d) => d.complexity) || [],
         backgroundColor: "#3b82f6",
       },
       {
         label: "Maintainability",
-        data: data.map((d) => d.maintainability),
+        data: data?.map((d) => d.maintainability) || [],
         backgroundColor: "#22c55e",
       },
     ],
@@ -176,8 +178,10 @@ function App() {
                 </p>
                 <p>📈 Complexity: {item.complexity}</p>
                 <p>🛠 Maintainability: {item.maintainability}</p>
-                <p>📄 Lines: {item.lines}</p>
-                <p>🔧 Functions: {item.functions}</p>
+
+                {/* SAFE OPTIONAL FIELDS */}
+                {item.lines && <p>📄 Lines: {item.lines}</p>}
+                {item.functions && <p>🔧 Functions: {item.functions}</p>}
               </div>
             ))}
           </div>
