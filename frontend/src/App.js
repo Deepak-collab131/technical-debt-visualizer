@@ -1,21 +1,19 @@
 import React, { useState } from "react";
-import { Bar } from "react-chartjs-2";
-
 import {
   Chart as ChartJS,
+  BarElement,
   CategoryScale,
   LinearScale,
-  BarElement,
   Tooltip,
-  Legend,
+  Legend
 } from "chart.js";
+import { Bar } from "react-chartjs-2";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 function App() {
-  const [repo, setRepo] = useState("");
-  const [data, setData] = useState([]);
-  const [insights, setInsights] = useState([]);
+  const [repoUrl, setRepoUrl] = useState("");
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,186 +21,129 @@ function App() {
     try {
       setLoading(true);
       setError("");
-      setData([]);
-      setInsights([]);
+      setData(null);
 
-      const res = await fetch(
-        "https://backend-gsxw.onrender.com/analyze",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ repoUrl: repo }),
-        }
-      );
-
-      const result = await res.json();
-
-      // 🛑 SAFETY CHECK
-      if (!Array.isArray(result)) {
-        throw new Error("Invalid data from backend");
+      if (!repoUrl.includes("github.com")) {
+        throw new Error("Invalid GitHub URL");
       }
 
-      setData(result);
+      const parts = repoUrl.split("github.com/")[1].split("/");
+      const owner = parts[0];
+      const repo = parts[1];
 
-      const ai = await fetch(
-        "https://backend-gsxw.onrender.com/ai-insights",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ metrics: result }),
-        }
+      const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`;
+
+      const res = await fetch(url);
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.message || "Failed to fetch repo");
+      }
+
+      const files = result.tree || [];
+
+      const jsFiles = files.filter(f => f.path.endsWith(".js")).length;
+      const testFiles = files.filter(f =>
+        f.path.toLowerCase().includes("test")
+      ).length;
+      const totalFiles = files.length;
+
+      // Technical debt score (simple logic)
+      const debtScore = Math.min(
+        100,
+        Math.round(((totalFiles - testFiles) / totalFiles) * 100)
       );
 
-      const aiResult = await ai.json();
-      setInsights(aiResult?.suggestions || []);
+      setData({
+        totalFiles,
+        jsFiles,
+        testFiles,
+        debtScore
+      });
     } catch (err) {
       console.error(err);
-      setError("❌ Failed to analyze repo. Try again.");
+      setError("❌ Invalid repo or API error");
     } finally {
       setLoading(false);
     }
   };
 
-  const chartData = {
-    labels: data?.map((d) => d.file) || [],
-    datasets: [
-      {
-        label: "Complexity",
-        data: data?.map((d) => d.complexity) || [],
-        backgroundColor: "#3b82f6",
-      },
-      {
-        label: "Maintainability",
-        data: data?.map((d) => d.maintainability) || [],
-        backgroundColor: "#22c55e",
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        labels: { color: "#fff" },
-      },
-    },
-    scales: {
-      x: {
-        ticks: { color: "#fff" },
-      },
-      y: {
-        ticks: { color: "#fff" },
-      },
-    },
-  };
+  const chartData = data
+    ? {
+        labels: ["Total Files", "JS Files", "Test Files"],
+        datasets: [
+          {
+            label: "Project Stats",
+            data: [data.totalFiles, data.jsFiles, data.testFiles]
+          }
+        ]
+      }
+    : null;
 
   return (
-    <div
-      style={{
-        padding: "30px",
-        background: "#0f172a",
-        color: "white",
-        minHeight: "100vh",
-        fontFamily: "Arial",
-      }}
-    >
-      <h1>🚀 Technical Debt Visualizer</h1>
+    <div style={{ fontFamily: "Arial", background: "#0f172a", minHeight: "100vh", color: "white", padding: "30px" }}>
+      
+      <h1 style={{ textAlign: "center" }}>🚀 Technical Debt Visualizer</h1>
 
-      {/* INPUT */}
-      <div style={{ marginBottom: "20px" }}>
+      <div style={{ textAlign: "center", marginTop: "30px" }}>
         <input
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
-          placeholder="Enter GitHub Repo URL"
+          type="text"
+          placeholder="Enter GitHub repo URL"
+          value={repoUrl}
+          onChange={(e) => setRepoUrl(e.target.value)}
           style={{
-            padding: "10px",
-            width: "320px",
-            marginRight: "10px",
-            borderRadius: "6px",
-            border: "none",
+            width: "400px",
+            padding: "12px",
+            borderRadius: "8px",
+            border: "none"
           }}
         />
+
+        <br /><br />
 
         <button
           onClick={analyzeRepo}
           style={{
-            padding: "10px 16px",
+            padding: "12px 25px",
+            borderRadius: "8px",
+            border: "none",
             background: "#3b82f6",
             color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
+            fontWeight: "bold",
+            cursor: "pointer"
           }}
         >
           Analyze
         </button>
       </div>
 
-      {/* LOADING */}
-      {loading && <p>⏳ Analyzing repo...</p>}
+      <div style={{ textAlign: "center", marginTop: "20px" }}>
+        {loading && <p>⏳ Analyzing...</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
 
-      {/* ERROR */}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-
-      {/* RESULTS */}
-      {data.length > 0 && (
-        <>
-          <h2>📊 Results</h2>
-
-          <div
-            style={{
-              background: "#1e293b",
-              padding: "20px",
-              borderRadius: "10px",
-              marginBottom: "20px",
-            }}
-          >
-            <Bar data={chartData} options={chartOptions} />
-          </div>
-
-          {/* FILE CARDS */}
-          <div style={{ display: "grid", gap: "10px" }}>
-            {data.map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "#1e293b",
-                  padding: "15px",
-                  borderRadius: "8px",
-                }}
-              >
-                <p>
-                  <b>{item.file}</b>
-                </p>
-                <p>📈 Complexity: {item.complexity}</p>
-                <p>🛠 Maintainability: {item.maintainability}</p>
-
-                {/* SAFE OPTIONAL FIELDS */}
-                {item.lines && <p>📄 Lines: {item.lines}</p>}
-                {item.functions && <p>🔧 Functions: {item.functions}</p>}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* AI INSIGHTS */}
-      {insights.length > 0 && (
+      {data && (
         <div
           style={{
-            marginTop: "30px",
+            marginTop: "40px",
             background: "#1e293b",
             padding: "20px",
-            borderRadius: "10px",
+            borderRadius: "12px",
+            maxWidth: "600px",
+            marginInline: "auto"
           }}
         >
-          <h2>🤖 AI Insights</h2>
+          <h2 style={{ textAlign: "center" }}>📊 Results</h2>
 
-          {insights.map((s, i) => (
-            <p key={i}>• {s}</p>
-          ))}
+          <p>📁 Total Files: {data.totalFiles}</p>
+          <p>📜 JavaScript Files: {data.jsFiles}</p>
+          <p>🧪 Test Files: {data.testFiles}</p>
+
+          <h3>⚠️ Technical Debt Score: {data.debtScore}%</h3>
+
+          <div style={{ marginTop: "20px" }}>
+            <Bar data={chartData} />
+          </div>
         </div>
       )}
     </div>
